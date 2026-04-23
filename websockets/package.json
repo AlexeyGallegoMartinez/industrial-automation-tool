@@ -1,0 +1,24 @@
+{
+  "name": "websockets_learning",
+  "version": "1.0.0",
+  "description": "This is a tesst application where I will learn about websockets",
+  "license": "ISC",
+  "author": "Alexey Martinez",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node app.js",
+    "dev": "nodemon app.js"
+  },
+  "dependencies": {
+    "body-parser": "^2.2.2",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "nodemon": "^3.1.14",
+    "socket.io": "^4.8.3",
+    "st-ethernet-ip": "^2.7.5"
+  }
+}
