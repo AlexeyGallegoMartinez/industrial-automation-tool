@@ -54,9 +54,18 @@ function registerPlcSocketHandlers(io, client) {
         (tagValue) => {
           io.emit(SOCKET_EVENTS.plcTagUpdate, tagValue);
         },
-        (error) => {
-          client.emit(SOCKET_EVENTS.plcError, {
-            message: error.message,
+        (error, tag) => {
+          io.emit(SOCKET_EVENTS.plcError, {
+            message: "PLC tag read failed.",
+            detail: error.message,
+            tag: tag
+              ? {
+                  id: `${tag.program || "controller"}:${tag.name}`,
+                  name: tag.name,
+                  program: tag.program || null,
+                  dataType: tag.type?.typeName || "unknown",
+                }
+              : null,
             timestamp: new Date().toISOString(),
           });
         },

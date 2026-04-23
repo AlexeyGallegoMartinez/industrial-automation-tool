@@ -23,6 +23,7 @@ class RockwellPlcService {
     };
     this.watchedTags = new Map();
     this.pollTimer = null;
+    this.isPolling = false;
     this.pollRateMs = DEFAULT_POLL_RATE_MS;
   }
 
@@ -119,6 +120,7 @@ class RockwellPlcService {
     const tagList = new TagList();
     await this.controller.getControllerTagList(tagList);
     this.tagList = tagList;
+    this.controller.state.tagList = tagList;
 
     const tags = tagList.tags.map(normalizeTagDefinition);
 
@@ -167,34 +169,40 @@ class RockwellPlcService {
   startPolling(onTagUpdate, onError) {
     this.stopPolling();
 
-    this.pollTimer = setInterval(async () => {
+    const poll = async () => {
       if (!this.controller || this.connection.status !== "connected") {
         return;
       }
 
-      for (const tag of this.watchedTags.values()) {
-        try {
-          const plcTag = new Tag(tag.name, tag.program || null);
-          await this.controller.readTag(plcTag);
-          onTagUpdate(
-            normalizeTagValue({
-              tag,
-              value: sanitizeTagValue(plcTag.value),
-            }),
-          );
-        } catch (error) {
-          onTagUpdate(
-            normalizeTagValue({
-              tag,
-              value: null,
-              quality: "bad",
-              message: error.message,
-            }),
-          );
-          onError(error);
-        }
+      if (this.isPolling) {
+        return;
       }
-    }, this.pollRateMs);
+
+      try {
+        this.isPolling = true;
+
+        for (const tag of this.watchedTags.values()) {
+          try {
+            onTagUpdate(await this.readTagValue(tag));
+          } catch (error) {
+            onTagUpdate(
+              normalizeTagValue({
+                tag,
+                value: null,
+                quality: "bad",
+                message: error.message,
+              }),
+            );
+            onError(error, tag);
+          }
+        }
+      } finally {
+        this.isPolling = false;
+      }
+    };
+
+    poll();
+    this.pollTimer = setInterval(poll, this.pollRateMs);
   }
 
   stopPolling() {
@@ -202,6 +210,20 @@ class RockwellPlcService {
       clearInterval(this.pollTimer);
       this.pollTimer = null;
     }
+
+    this.isPolling = false;
+  }
+
+  async readTagValue(tag) {
+    this.assertConnected();
+
+    const plcTag = this.createReadableTag(tag);
+    await this.controller.readTag(plcTag);
+
+    return normalizeTagValue({
+      tag,
+      value: sanitizeTagValue(plcTag.value),
+    });
   }
 
   assertConnected() {
@@ -242,6 +264,17 @@ class RockwellPlcService {
     }
 
     return tagDefinition;
+  }
+
+  createReadableTag(tag) {
+    const program = tag.program || null;
+    const arrayDims = tag.type?.arrayDims || 0;
+
+    if (typeof this.controller.newTag === "function") {
+      return this.controller.newTag(tag.name, program, false, arrayDims);
+    }
+
+    return new Tag(tag.name, program);
   }
 }
 
